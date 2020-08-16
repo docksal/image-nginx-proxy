@@ -60,8 +60,39 @@
 		ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
 		ssl_prefer_server_ciphers on;
 
+		{{ if and .Host.Env.NGO_CALLBACK_HOST .Host.Env.NGO_CLIENT_ID .Host.Env.NGO_CLIENT_SECRET .Host.Env.NGO_TOKEN_SECRET .Container.Env.OAUTH_ENABLED }}
+		{{ if eq .Container.Env.OAUTH_ENABLED "1" }}
+		# Enable oauth
+		resolver 8.8.8.8 ipv6=off;
+
+		lua_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+		lua_ssl_verify_depth        5;
+
+		set $ngo_callback_uri       '/_oauth';
+		set $ngo_callback_host      '{{ .Host.Env.NGO_CALLBACK_HOST }}';
+		set $ngo_client_id          '{{ .Host.Env.NGO_CLIENT_ID }}';
+		set $ngo_client_secret      '{{ .Host.Env.NGO_CLIENT_SECRET }}';
+		set $ngo_token_secret       '{{ .Host.Env.NGO_TOKEN_SECRET }}';
+		set $ngo_user               'unknown';
+		set $ngo_email_as_user      'true';
+		set $ngo_extra_validity     '0';
+		set_by_lua $ngo_domain      'return os.getenv("NGO_DOMAIN")';
+		set_by_lua $ngo_whitelist   'return os.getenv("NGO_WHITELIST")';
+		set_by_lua $ngo_blacklist   'return os.getenv("NGO_BLACKLIST")';
+
+		expires 0;
+
+		add_header Google-User $ngo_user;
+
+		location / {
+			proxy_ignore_client_abort on;
+			access_by_lua_file "/etc/nginx/lua/access.lua";
+			proxy_pass http://{{ .Upstream }};
+		{{ end }}
+		{{ else }}
 		location / {
 			proxy_pass http://{{ .Upstream }};
+		{{ end }}
 		}
 	}
 {{ end }}
@@ -124,7 +155,7 @@
 		{{ $cert := (coalesce $certName $vhostCert) }}
 
 		{{/* Generate HTTP/HTTPS server config */}}
-		{{ template "server" (dict "Hosts" $hosts "Upstream" $upstream "Cert" $cert) }}
+		{{ template "server" (dict "Hosts" $hosts "Upstream" $upstream "Cert" $cert "Container" $pr_container "Host" $CurrentContainer) }}
 
 	{{ end }}
 	# -------------------------------------------------- #
@@ -181,7 +212,7 @@
 		{{ $cert := (coalesce $certName $vhostCert) }}
 
 		{{/* Generate HTTP/HTTPS server config */}}
-		{{ template "server" (dict "Hosts" $hosts "Upstream" $upstream "Cert" $cert) }}
+		{{ template "server" (dict "Hosts" $hosts "Upstream" $upstream "Cert" $cert "Container" $container "Host" $CurrentContainer) }}
 
 {{ end }}
 

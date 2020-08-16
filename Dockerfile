@@ -43,10 +43,11 @@ RUN set -xe; \
 	# Also symlink nginx binary to a location in PATH
 	ln -s /usr/local/openresty/nginx/sbin/nginx /usr/sbin/nginx
 
-# Certs
+# Certs and OAuth
 RUN set -xe; \
 	apk add --update --no-cache \
 		openssl \
+		git \
 	; \
 	# Create a folder for custom vhost certs (mount custom certs here)
 	mkdir -p /etc/certs/custom; \
@@ -71,7 +72,16 @@ RUN set -xe; \
 		-extensions ext \
 		-config ext.conf; \
 	rm -rf ext.conf; \
-	apk del openssl && rm -rf /var/cache/apk/*;
+	; \
+	# Install OAuth dependencies
+	git clone -c transfer.fsckobjects=true https://github.com/pintsized/lua-resty-http.git /tmp/lua-resty-http; \
+	cd /tmp/lua-resty-http; \
+	# https://github.com/pintsized/lua-resty-http/releases/tag/v0.07 v0.07
+	git checkout 69695416d408f9cfdaae1ca47650ee4523667c3d; \
+	mkdir -p /etc/nginx/lua; \
+	cp -aR /tmp/lua-resty-http/lib/resty /etc/nginx/lua/resty; \
+	rm -rf /tmp/lua-resty-http; \
+	apk del openssl git && rm -rf /var/cache/apk/*;
 
 COPY conf/nginx/ /etc/nginx/
 COPY conf/sudoers /etc/sudoers

@@ -22,6 +22,7 @@ fi
 if [[ "$1" == "supervisord" ]]; then
 	# Generate config files from templates
 	gomplate --file /etc/nginx/nginx.conf.tmpl --out /etc/nginx/nginx.conf
+	gomplate --file /etc/nginx/conf.d/auth.conf.tmpl --out /etc/nginx/conf.d/auth.conf
 
 	exec supervisord -c /etc/supervisord.conf
 # Command mode
