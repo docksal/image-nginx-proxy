@@ -24,7 +24,13 @@ docker run -d --name docksal-vhost-proxy --label "io.docksal.group=system" --res
 
 ## Container configuration 
 
+Required labels for this VHost Proxy are `io.docksal.project-root` and `io.docksal.virtual-host`.
+
 Proxy reads routing settings from container labels. The following labels are supported:
+
+`io.docksal.project-root`
+
+Project root. Supports CI/CD scenarios with the cleanup job (see [Advanced proxy configuration below](#advanced-proxy-configuration)) and project root volumes can be automatically un-mounted when not set to permanent.
 
 `io.docksal.virtual-host`
 
@@ -45,15 +51,43 @@ Example: `io.docksal.virtual-port=3000`
 
 Launching a nodejs app container using port `3000` and host `myapp.example.com`
 
+docker command
 ```bash
-docker run -d --name=nodejs \
+docker run -d --name=myapp_nodejs \
 	-v $(pwd):/app \
+	--label=com.docker.compose.project=myapp
+	--label=io.docksal.project-root=$(pwd) \
 	--label=io.docksal.virtual-host=myapp.example.com \
 	--label=io.docksal.virtual-port=3000 \
+	--network=myapp_default \
 	--expose 3000 \
 	node:alpine \
 	node /app/index.js
 ``` 
+
+docker compose `myapp/docker-compose.yml`
+```yaml
+---
+
+version: "3"
+networks:
+	docksal_network:
+		external:
+			name: myapp_default
+
+services:
+	web:
+		command: "node /app/index.js"
+		image: node:alpine
+		volumes:
+			- "./:/app"
+		labels:
+			- "io.docksal.project-root=${PWD}"
+			- "io.docksal.virtual-host=myapp.example.com"
+			- "io.docksal.virtual-port=3000"
+		networks:
+			- docksal_network
+```
 
 ## Advanced proxy configuration
 
