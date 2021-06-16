@@ -17,6 +17,9 @@ defaults:
     shell: bash
 
 env:
+  IMAGE: docksal/vhost-proxy
+  #UPSTREAM_IMAGE: debian
+  LATEST_VERSION: '1.6'
   DOCKSAL_VERSION: develop
   # Setting these while testing locally may result in data loss, so only use in CI.
   PROJECT_INACTIVITY_TIMEOUT: 30s
@@ -26,43 +29,212 @@ env:
 
 jobs:
   build:
-    name: Build
+    name: "Build: ${{ matrix.version }}/${{ matrix.arch }}"
     runs-on: ubuntu-20.04
+
     strategy:
-      fail-fast: false
+      fail-fast: false # Don't cancel other jobs if one fails
+      matrix:
+        include:
+          -
+            platform: linux/amd64
+            arch: amd64
+            version: '.'
+          -
+            platform: linux/arm64
+            arch: arm64
+            version: '.'
+
+    env:
+      ARCH: ${{ matrix.arch }}
+      VERSION_PREFIX: ''
+      VERSION: ${{ matrix.version }}
 
     steps:
       -
         name: Checkout
         uses: actions/checkout@v2
       -
-        name: Image build
-        uses: docksal/actions/image-build@main
+        name: Environment variables
+        run: |
+          # Export variables for further steps
+          echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
+      -
+        # Switch docker context to a remote arm64 host
+        name: Switch to arm64 builder host
+        if: ${{ env.ARCH == 'arm64' }}
+        uses: arwynfr/actions-docker-context@98fc92878d0b856c1112c79b8d0f45353206e186
+        with:
+          docker_host: "ssh://ubuntu@${{ secrets.ARM64_HOST }}"
+          context_name: arm64-host
+          ssh_key: "${{ secrets.ARM64_HOST_SSH_KEY }}"
+          ssh_cert: "${{ secrets.ARM64_HOST_SSH_CERT }}"
+          use_context: true
+      -
+        name: Check Docker
+        run: |
+          docker version
+          docker info
+      -
+        name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        # Build and cache image in the registry
+        name: Build image
+        uses: docker/build-push-action@v2
+        with:
+          context: ${{ env.VERSION }}
+          file: ${{ env.VERSION }}/Dockerfile
+          build-args: VERSION=${{ env.VERSION }}
+          # Push intermediate arch-specific build tag to repo
+          tags: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+          push: ${{ github.event_name != 'pull_request' }} # Don't push for PRs
+          # BUILD_IMAGE_TAG - persistent multi-arch tag, updated at the end of the build (success or failure)
+          cache-from: type=registry,ref=docker.io/${{ env.BUILD_IMAGE_TAG }}
+          cache-to: type=inline # Write the cache metadata into the image configuration
 
   test:
-    name: Build
+    name: "Test: ${{ matrix.version }}/${{ matrix.arch }}"
     runs-on: ubuntu-20.04
+    needs: build
+    outputs:
+      status: ${{ steps.tests.outputs.status }} # Tests status (used by downstream jobs)
+
     strategy:
-      fail-fast: false
+      fail-fast: false # Don't cancel other jobs if one fails
+      matrix:
+        include:
+          -
+            platform: linux/amd64
+            arch: amd64
+            version: '.'
+          -
+            platform: linux/arm64
+            arch: arm64
+            version: '.'
+
+    env:
+      ARCH: ${{ matrix.arch }}
+      VERSION_PREFIX: ''
+      VERSION: ${{ matrix.version }}
 
     steps:
+      -
+        name: Setup Bats
+        uses: mig4/setup-bats@v1
+        with:
+          bats-version: '1.3.0'
       -
         name: Checkout
         uses: actions/checkout@v2
       -
-        name: Image build
-        uses: docksal/actions/image-test@main
+        name: Environment variables
+        run: |
+          # Export variables for further steps
+          echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
+      -
+        # Switch docker context to a remote arm64 host
+        name: Switch to arm64 builder host
+        if: ${{ env.ARCH == 'arm64' }}
+        uses: arwynfr/actions-docker-context@98fc92878d0b856c1112c79b8d0f45353206e186
+        with:
+          docker_host: "ssh://ubuntu@${{ secrets.ARM64_HOST }}"
+          context_name: arm64-host
+          ssh_key: "${{ secrets.ARM64_HOST_SSH_KEY }}"
+          ssh_cert: "${{ secrets.ARM64_HOST_SSH_CERT }}"
+          use_context: true
+      -
+        name: Check Docker
+        run: |
+          docker version
+          docker info
+      -
+        # Run tests
+        name: Test
+        id: tests
+        working-directory: ${{ env.VERSION }}
+        env:
+          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+          SECRET_PLATFORMSH_CLI_TOKEN: ${{ secrets.SECRET_PLATFORMSH_CLI_TOKEN }}
+          SECRET_TERMINUS_TOKEN: ${{ secrets.SECRET_TERMINUS_TOKEN }}
+        # Run tests and set output status (used by downstream jobs)
+        run: |
+          make test
+          [[ $? == 0 ]] && "::set-output name=status::pass" || echo "::set-output name=status::fail"
+      -
+        # Print image info
+        name: Docker image info
+        env:
+          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+        run: |
+          set -xeuo pipefail
+          docker image ls | grep "${{ env.IMAGE }}"
+          docker image inspect "${{ env.BUILD_IMAGE_TAG }}"
 
   push:
-    name: Build
+    name: "Push: ${{ matrix.version }}/multi"
     runs-on: ubuntu-20.04
+    # Wait for test to either succeed or fail
+    needs: test
+    if: always()
+
     strategy:
-      fail-fast: false
+      matrix:
+        version:
+          - '.'
+
+    env:
+      VERSION_PREFIX: ''
+      VERSION: ${{ matrix.version }}
 
     steps:
       -
         name: Checkout
         uses: actions/checkout@v2
       -
-        name: Image build
-        uses: docksal/actions/image-push@main
+        name: Environment variables
+        run: |
+          # Export variables for further steps
+          echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
+      -
+        # Login to Docker Hub
+        name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        # Generate image tags (edge, stable, release)
+        name: Docker image tags
+        id: docker_tags
+        if: ${{ needs.test.outputs.status == 'pass' }} # Generate persistent tags only if tests passed
+        run: .github/scripts/docker-tags.sh
+      -
+        # Create and push multi-arch image manifests
+        name: Push multi-arch images
+        env:
+          TAGS: |
+            ${{ env.BUILD_IMAGE_TAG }}
+            ${{ steps.docker_tags.outputs.tags }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }} # Needed for docker-tag-delete.sh
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }} # Needed for docker-tag-delete.sh
+        run: |
+          set -xeuo pipefail
+          IFS="${IFS}," # Also split strings by comma (in case list of tag is comma-separated)
+          for tag in ${TAGS}; do
+            if [[ "${tag}" == "" ]]; then continue; fi
+            docker manifest create --amend ${tag} \
+              ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-amd64 \
+              ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-arm64
+            docker manifest inspect ${tag}
+            docker manifest push ${tag}
+          done
+          # Clean up intermediate arch-specific image tags (DockerHub only)
+          .github/scripts/docker-tag-delete.sh ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-amd64
+          .github/scripts/docker-tag-delete.sh ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-arm64
