@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: Build, Test, Push
 
 on:
   schedule:
@@ -10,6 +10,7 @@ on:
       - feature/*
     tags:
       - 'v*.*.*'
+  workflow_dispatch: # Allow manually triggering a build
 
 defaults:
   run:
@@ -24,8 +25,8 @@ env:
   DOCKSAL_DNS_DOMAIN: docksal.site
 
 jobs:
-  build-test-push:
-    name: Build, Test, Push
+  build:
+    name: Build
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
@@ -35,5 +36,33 @@ jobs:
         name: Checkout
         uses: actions/checkout@v2
       -
-        name: Build, test, push
+        name: Image build
         uses: docksal/actions/image-build@main
+
+  test:
+    name: Build
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Image build
+        uses: docksal/actions/image-test@main
+
+  push:
+    name: Build
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Image build
+        uses: docksal/actions/image-push@main
