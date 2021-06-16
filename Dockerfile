@@ -1,5 +1,7 @@
 FROM openresty/openresty:1.19.3.2-1-alpine
 
+ARG TARGETARCH
+
 RUN set -xe; \
 	apk add --update --no-cache \
 		bash \
