@@ -1,11 +1,15 @@
-name: Default (push)
+name: Docker Build and Push
 
 on:
+  schedule:
+    - cron: '0 10 * * 0' # everyday sunday at 10am
   push:
     branches:
-      - '**'
+      - master
+      - develop
+      - feature/*
     tags:
-      - 'v*'
+      - 'v*.*.*'
 
 defaults:
   run:
@@ -18,73 +22,135 @@ env:
   PROJECT_DANGLING_TIMEOUT: 60s
   DOCKSAL_DNS_DISABLED: 1
   DOCKSAL_DNS_DOMAIN: docksal.site
-  EVENT_NAME: '${{ github.event_name }}'
 
 jobs:
-  default:
-    name: 'Build, test, and push'
-    runs-on: ubuntu-latest
-
+  build-test-push:
+    name: Build, Test, Push
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
 
     steps:
       -
-        name: Source name
-        id: source_name
-        run: |
-          echo "::set-output name=SOURCE_NAME::${GITHUB_REF#refs/*/}"
-          echo "::set-output name=SOURCE_BRANCH::${GITHUB_REF#refs/heads/}"
-          if [[ ${{ github.event.ref }} =~ ^refs/tags/ ]]; then
-              echo "::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}"
-          else
-              echo "::set-output name=SOURCE_TAG::"
-          fi
+        name: Checkout
+        uses: actions/checkout@v2
       -
-        name: Install BATS (tests)
+        name: Check Docker
         run: |
+          docker version
+          docker info
+      -
+        name: Install prerequisites for tests
+        run: |
+          set -xeuo pipefail
+          # Install bats for tests
           git clone https://github.com/bats-core/bats-core.git
           cd bats-core
           sudo ./install.sh /usr/local
           bats -v
+          # Pull curl with http2 support
+          docker pull badouralix/curl-http2
       -
         name: Install Docksal
         run: curl -sSL http://get.docksal.io | bash
       -
-        name: fin version
-        run: fin version
-      -
         name: fin sysinfo
         run: fin sysinfo
       -
-        # Pull curl image with http2 support (used in tests)
-        name: Pull curl with http2 support
-        run: docker pull badouralix/curl-http2
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
       -
-        name: Checkout
-        uses: actions/checkout@v2
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
       -
-        name: Build and test
+        name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      -
+        # Calculates docker image tags for the given build context
+        # The output is used in build and push step as `tags: ${{ steps.docker_meta.outputs.tags }}`
+        # See https://github.com/crazy-max/ghaction-docker-meta
+        name: Docker meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          # List of Docker images to use as base name for tags
+          images: |
+            ${{ env.IMAGE }}
+            ghcr.io/${{ env.IMAGE }}
+          tag-sha: true # add git short SHA as Docker tag
+      -
+        # Build for local use
+        name: Build image (php)
+        run: make build
+      -
+        # Print image info
+        name: Docker image info
         run: |
-          make
-          make start
-          make exec -e CMD="env"  # Views env variables picked up by proxy
-          make test
+          set -xeuo pipefail
+          docker image ls | grep "${{ env.IMAGE }}"
+          docker image inspect "${{ env.IMAGE }}:build"
       -
-        name: Release on success
-        if: |
-          success() &&
-          (
-            github.ref == 'refs/heads/develop' ||
-            github.ref == 'refs/heads/master' ||
-            startsWith(github.ref, 'refs/tags')
-          )
-        run: make release
+        # Cache image layers in the registry
+        name: Push image cache
+        uses: docker/build-push-action@v2
         env:
-          SOURCE_NAME: '${{ steps.source_name.outputs.SOURCE_NAME }}'
-          SOURCE_BRANCH: '${{ steps.source_name.outputs.SOURCE_BRANCH }}'
-          SOURCE_TAG: '${{ steps.source_name.outputs.SOURCE_TAG }}'
+          IMAGE_CACHE: ghcr.io/${{ env.IMAGE }}:build
+        with:
+          context: .
+          file: Dockerfile
+          #platforms: linux/amd64,linux/arm64
+          tags: ${{ env.IMAGE_CACHE }} # Build cache tag in ghcr.io
+          push: ${{ github.event_name != 'pull_request' }} # Don't push for PRs
+          cache-to: type=inline # Write the cache metadata into the image configuration
       -
-        name: Log on failure
-        if: ${{ failure() }}
-        run: make logs
+        # Run tests
+        name: Test image
+        run: make test
+      -
+        # Generate image meta information
+        name: Docker image tags
+        id: docker_tags
+        run: make tags
+      -
+        # Push final image to the registry
+        # This will pick-up the build cache from the local build step
+        name: Push image (base)
+        # Don't run if the list of tags is empty
+        # Note: using tags from docker_tags (custom)
+        if: ${{ steps.docker_tags.outputs.tags != '' }}
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: Dockerfile
+          #platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.docker_tags.outputs.tags }} # Note: using tags from docker_tags (custom script)
+          labels: ${{ steps.docker_meta.outputs.labels }} # Note: using lables from docker_meta
+          push: ${{ github.event_name != 'pull_request' }} # Don't push for PRs
+          cache-to: type=inline # Write the cache metadata into the image configuration
+
+      -
+        # Push final image to the registry
+        # This will pick-up the build cache from the local build step
+        name: Push image
+        # Don't run if the list of tags is empty
+        # Note: using tags from docker_tags (custom)
+        if: ${{ steps.docker_tags.outputs.tags != '' }}
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: Dockerfile
+          #platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.docker_tags.outputs.tags }} # Note: using tags from docker_tags (custom script)
+          labels: ${{ steps.docker_meta.outputs.labels }} # Note: using lables from docker_meta
+          push: ${{ github.event_name != 'pull_request' }} # Don't push for PRs
+          cache-to: type=inline # Write the cache metadata into the image configuration
