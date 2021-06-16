@@ -60,7 +60,7 @@ jobs:
           # Export variables for further steps
           echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
           echo "BUILD_CONTEXT=${VERSION:-.}" >> ${GITHUB_ENV}
-          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
+          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}build" >> ${GITHUB_ENV}
       -
         # Switch docker context to a remote arm64 host
         name: Switch to arm64 builder host
@@ -137,7 +137,7 @@ jobs:
         run: |
           # Export variables for further steps
           echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
-          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
+          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}build" >> ${GITHUB_ENV}
       -
         # Switch docker context to a remote arm64 host
         name: Switch to arm64 builder host
@@ -200,7 +200,7 @@ jobs:
         run: |
           # Export variables for further steps
           echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
-          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
+          echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}build" >> ${GITHUB_ENV}
       -
         # Login to Docker Hub
         name: Login to Docker Hub
