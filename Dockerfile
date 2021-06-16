@@ -1,4 +1,4 @@
-FROM openresty/openresty:1.17.8.1-0-alpine
+FROM openresty/openresty:1.19.3.2-1-alpine
 
 RUN set -xe; \
 	apk add --update --no-cache \
@@ -13,13 +13,13 @@ RUN set -xe; \
 	addgroup -S nginx; \
 	adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx
 
-ARG DOCKER_VERSION=19.03.5
+ARG DOCKER_VERSION=20.10.7
 ARG DOCKER_GEN_VERSION=0.7.6
 ARG GOMPLATE_VERSION=3.0.0
 
 # Install docker client binary (if not mounting binary from host)
 RUN set -xe; \
-	curl -sSL -O "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz"; \
+	curl -sSL -O "https://download.docker.com/linux/static/stable/${TARGETARCH}/docker-${DOCKER_VERSION}.tgz"; \
 	tar zxf docker-$DOCKER_VERSION.tgz; \
 	mv docker/docker /usr/local/bin ; \
 	rm -rf docker*
