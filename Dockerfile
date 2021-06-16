@@ -23,7 +23,7 @@ ARG GOMPLATE_VERSION=3.0.0
 # Install docker client binary (if not mounting binary from host)
 RUN set -xe; \
 	# x86_64 / aarch64
-	UNAMEARCH=$(uname -m) \
+	UNAMEARCH=$(uname -m); \
 	curl -sSL -O "https://download.docker.com/linux/static/stable/${UNAMEARCH}/docker-${DOCKER_VERSION}.tgz"; \
 	tar zxf docker-$DOCKER_VERSION.tgz; \
 	mv docker/docker /usr/local/bin ; \
