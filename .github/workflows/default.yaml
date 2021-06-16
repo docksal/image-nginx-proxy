@@ -39,11 +39,11 @@ jobs:
           -
             platform: linux/amd64
             arch: amd64
-            version: '.'
+            version: ''
           -
             platform: linux/arm64
             arch: arm64
-            version: '.'
+            version: ''
 
     env:
       ARCH: ${{ matrix.arch }}
@@ -59,6 +59,7 @@ jobs:
         run: |
           # Export variables for further steps
           echo "GIT_SHA7=${GITHUB_SHA:0:7}" >> $GITHUB_ENV
+          echo "BUILD_CONTEXT=${VERSION:-.}" >> ${GITHUB_ENV}
           echo "BUILD_IMAGE_TAG=${IMAGE}:${VERSION_PREFIX}${VERSION}-build" >> ${GITHUB_ENV}
       -
         # Switch docker context to a remote arm64 host
@@ -87,8 +88,8 @@ jobs:
         name: Build image
         uses: docker/build-push-action@v2
         with:
-          context: ${{ env.VERSION }}
-          file: ${{ env.VERSION }}/Dockerfile
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/Dockerfile
           build-args: VERSION=${{ env.VERSION }}
           # Push intermediate arch-specific build tag to repo
           tags: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
@@ -111,11 +112,11 @@ jobs:
           -
             platform: linux/amd64
             arch: amd64
-            version: '.'
+            version: ''
           -
             platform: linux/arm64
             arch: arm64
-            version: '.'
+            version: ''
 
     env:
       ARCH: ${{ matrix.arch }}
@@ -157,11 +158,9 @@ jobs:
         # Run tests
         name: Test
         id: tests
-        working-directory: ${{ env.VERSION }}
+        working-directory: ${{ env.BUILD_CONTEXT }}
         env:
           BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
-          SECRET_PLATFORMSH_CLI_TOKEN: ${{ secrets.SECRET_PLATFORMSH_CLI_TOKEN }}
-          SECRET_TERMINUS_TOKEN: ${{ secrets.SECRET_TERMINUS_TOKEN }}
         # Run tests and set output status (used by downstream jobs)
         run: |
           make test
@@ -186,7 +185,7 @@ jobs:
     strategy:
       matrix:
         version:
-          - '.'
+          - ''
 
     env:
       VERSION_PREFIX: ''
