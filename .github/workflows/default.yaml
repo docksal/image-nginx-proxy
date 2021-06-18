@@ -160,9 +160,7 @@ jobs:
           DOCKSAL_VERSION: ${{ env.DOCKSAL_VERSION }}
           IMAGE_VHOST_PROXY: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
         # This installs Docksal using the passed DOCKSAL_VERSION value
-        run: |
-          # curl -sSL http://get.docksal.io | bash
-          fin system reset vhost-proxy
+        run: curl -sSL http://get.docksal.io | bash
       -
         # Run tests
         name: Test
