@@ -20,7 +20,7 @@ env:
   IMAGE: docksal/vhost-proxy
   #UPSTREAM_IMAGE: debian
   LATEST_VERSION: '1.6'
-  DOCKSAL_VERSION: develop
+  DOCKSAL_VERSION: feature/compose-v2
   # Setting these while testing locally may result in data loss, so only use in CI.
   PROJECT_INACTIVITY_TIMEOUT: 30s
   PROJECT_DANGLING_TIMEOUT: 60s
