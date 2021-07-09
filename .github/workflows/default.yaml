@@ -165,9 +165,7 @@ jobs:
           docker version
           docker info
       -
-        name: Install Docksal / Launch vhost-proxy
-        env:
-          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+        name: Install Docksal
         # This installs Docksal using the passed DOCKSAL_VERSION value
         run: curl -sSL http://get.docksal.io | bash
       -
@@ -179,6 +177,7 @@ jobs:
           BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
         # Run tests and set output status (used by downstream jobs)
         run: |
+          make start
           make test
           [[ $? == 0 ]] && "::set-output name=status::pass" || echo "::set-output name=status::fail"
 
