@@ -2,7 +2,7 @@
 DOCKER ?= docker
 
 ifeq ($(VERSION),)
-	VERSION = dev
+	VERSION = build
 	LATEST_VERSION = $(VERSION)
 endif
 
@@ -57,7 +57,7 @@ start: clean
 	cp -R tests/certs ~/.docksal
 	IMAGE_VHOST_PROXY=$(REPO):$(BUILD_TAG) fin system reset vhost-proxy
 	# Give vhost-proxy a bit of time to initialize
-	sleep ${DELAY}
+	sleep 10s
 	# Stop crond, so it does not interfere with tests
 	make exec -e CMD='supervisorctl stop crond'
 

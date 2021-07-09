@@ -2,7 +2,7 @@ name: Build, Test, Push
 
 on:
   schedule:
-    - cron: '0 10 * * 0' # everyday sunday at 10am
+    - cron: '0 10 * * 0' # Every Sunday at 10AM
   push:
     branches:
       - master
@@ -19,7 +19,8 @@ defaults:
 env:
   IMAGE: docksal/vhost-proxy
   #UPSTREAM_IMAGE: debian
-  LATEST_VERSION: '1.6'
+  LATEST_VERSION: "1.6"
+  # TODO: Switch back to "develop" once https://github.com/docksal/docksal/pull/1503 is merged.
   DOCKSAL_VERSION: feature/compose-v2
   # Setting these while testing locally may result in data loss, so only use in CI.
   PROJECT_INACTIVITY_TIMEOUT: 30s
