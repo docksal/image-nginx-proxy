@@ -1,18 +1,16 @@
-version: "2.1"
+version: "3"
 
 services:
   web:
-    extends:
-      file: ${HOME}/.docksal/stacks/services.yml
-      service: nginx
-    expose:
-    # Expose a custom port
-    # A custom nginx vhost with this port is defined in .docksal/etc/nginx/vhosts.conf
-    - 2580
-    environment:
-    - NGINX_VHOST_PRESET=html
+    image: hashicorp/http-echo:0.2.3
+    ports:
+      - 2580 # Custom port
+    network_mode: bridge # Use a shared bridge network
     labels:
-    # Mark this stack as permanent, so that it's not removed during cleanup
-    - io.docksal.permanent=true
-    # Tell vhost-proxy to route to the custom port
-    - io.docksal.virtual-port=2580
+      - io.docksal.project-root=${PROJECT_ROOT}
+      - io.docksal.virtual-host=project3.docksal.site
+      - io.docksal.virtual-port=2580 # Tell vhost-proxy to route to the custom port
+      - io.docksal.permanent=true # Mark this stack as permanent, so that it's not removed during cleanup
+    command:
+      - '-listen=:2580' # Custom port
+      - '-text="Hello world: Project 3"'

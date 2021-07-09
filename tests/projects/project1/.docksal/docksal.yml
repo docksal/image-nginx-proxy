@@ -1,9 +1,15 @@
-version: "2.1"
+version: "3"
 
 services:
   web:
-    extends:
-      file: ${HOME}/.docksal/stacks/services.yml
-      service: nginx
-    environment:
-    - NGINX_VHOST_PRESET=html
+    image: hashicorp/http-echo:0.2.3
+    ports:
+      - 80
+    network_mode: bridge # Use a shared bridge network
+    labels:
+      - io.docksal.project-root=${PROJECT_ROOT}
+      - io.docksal.virtual-host=project1.docksal.site
+      - io.docksal.virtual-port=80
+    command:
+      - '-listen=:80'
+      - '-text="Hello world: Project 1"'
