@@ -22,9 +22,9 @@ env:
   LATEST_VERSION: "1.6"
   # TODO: Switch back to "develop" once https://github.com/docksal/docksal/pull/1503 is merged.
   DOCKSAL_VERSION: feature/compose-v2
-  # Setting these while testing locally may result in data loss, so only use in CI.
-  PROJECT_INACTIVITY_TIMEOUT: 30s
-  PROJECT_DANGLING_TIMEOUT: 60s
+#  # Setting these while testing locally may result in data loss, so only use in CI.
+#  PROJECT_INACTIVITY_TIMEOUT: 45s
+#  PROJECT_DANGLING_TIMEOUT: 90s
   DOCKSAL_DNS_DISABLED: 1
   DOCKSAL_DNS_DOMAIN: docksal.site
 
@@ -98,6 +98,15 @@ jobs:
           # BUILD_IMAGE_TAG - persistent multi-arch tag, updated at the end of the build (success or failure)
           cache-from: type=registry,ref=docker.io/${{ env.BUILD_IMAGE_TAG }}
           cache-to: type=inline # Write the cache metadata into the image configuration
+      -
+        # Print image info
+        name: Docker image info
+        env:
+          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+        run: |
+          set -xeuo pipefail
+          docker image ls | grep "${{ env.IMAGE }}"
+          docker image inspect "${{ env.BUILD_IMAGE_TAG }}"
 
   test:
     name: "Test: ${{ matrix.version }}/${{ matrix.arch }}"
@@ -158,8 +167,7 @@ jobs:
       -
         name: Install Docksal / Launch vhost-proxy
         env:
-          DOCKSAL_VERSION: ${{ env.DOCKSAL_VERSION }}
-          IMAGE_VHOST_PROXY: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
         # This installs Docksal using the passed DOCKSAL_VERSION value
         run: curl -sSL http://get.docksal.io | bash
       -
@@ -173,15 +181,6 @@ jobs:
         run: |
           make test
           [[ $? == 0 ]] && "::set-output name=status::pass" || echo "::set-output name=status::fail"
-      -
-        # Print image info
-        name: Docker image info
-        env:
-          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
-        run: |
-          set -xeuo pipefail
-          docker image ls | grep "${{ env.IMAGE }}"
-          docker image inspect "${{ env.BUILD_IMAGE_TAG }}"
 
   push:
     name: "Push: ${{ matrix.version }}/multi"
