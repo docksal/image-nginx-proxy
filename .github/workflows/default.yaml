@@ -93,16 +93,16 @@ jobs:
           file: ${{ env.BUILD_CONTEXT }}/Dockerfile
           build-args: VERSION=${{ env.VERSION }}
           # Push intermediate arch-specific build tag to repo
-          tags: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+          tags: ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
           push: ${{ github.event_name != 'pull_request' }} # Don't push for PRs
           # BUILD_IMAGE_TAG - persistent multi-arch tag, updated at the end of the build (success or failure)
-          cache-from: type=registry,ref=docker.io/${{ env.BUILD_IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.BUILD_IMAGE_TAG }}
           cache-to: type=inline # Write the cache metadata into the image configuration
       -
         # Print image info
         name: Docker image info
         env:
-          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+          BUILD_IMAGE_TAG: ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
         run: |
           set -xeuo pipefail
           docker image ls | grep "${{ env.IMAGE }}"
@@ -174,7 +174,7 @@ jobs:
         id: tests
         working-directory: ${{ env.BUILD_CONTEXT }}
         env:
-          BUILD_IMAGE_TAG: docker.io/${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
+          BUILD_IMAGE_TAG: ${{ env.BUILD_IMAGE_TAG }}-${{ env.GIT_SHA7 }}-${{ env.ARCH }}
         # Run tests and set output status (used by downstream jobs)
         run: |
           make start
